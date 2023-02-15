@@ -27,16 +27,14 @@ def insert_creds(user_id,cred_str):
             "user_id" : user_id,
             "cred_str":pickle.dumps(cred_str)
         }
-        current_cred = gdrivecreds.find_one({"user_id":user_id})
-        if not current_cred:
-            gdrivecreds.insert_one(data)
-        else:
+        if current_cred := gdrivecreds.find_one({"user_id": user_id}):
             gdrivecreds.update_one(current_cred,{"$set":data})
+        else:
+            gdrivecreds.insert_one(data)
 
 def find_creds(user_id):
     with INSERTION_LOCK:
-        cred = gdrivecreds.find_one({"user_id":user_id})
-        if cred:
+        if cred := gdrivecreds.find_one({"user_id": user_id}):
             return pickle.loads(cred['cred_str'])
         else:
             return None
@@ -54,16 +52,14 @@ def sascre_insert_creds(user_id,cred_str):
             "user_id" : user_id,
             "cred_str":pickle.dumps(cred_str)
         }
-        current_cred = sascre_db.find_one({"user_id":user_id})
-        if not current_cred:
-            sascre_db.insert_one(data)
-        else:
+        if current_cred := sascre_db.find_one({"user_id": user_id}):
             sascre_db.update_one(current_cred,{"$set":data})
+        else:
+            sascre_db.insert_one(data)
 
 def sascre_find_creds(user_id):
     with INSERTION_LOCK:
-        cred = sascre_db.find_one({"user_id":user_id})
-        if cred:
+        if cred := sascre_db.find_one({"user_id": user_id}):
             return pickle.loads(cred['cred_str'])
         else:
             return None
@@ -79,15 +75,13 @@ def insert_parent_id(user_id,parent_id):
         "user_id" : user_id,
         "parent_id":parent_id
     }
-    current_parent_id = parentids.find_one({"user_id":user_id})
-    if not current_parent_id:
-        parentids.insert_one(data)
-    else:
+    if current_parent_id := parentids.find_one({"user_id": user_id}):
         parentids.update_one(current_parent_id,{"$set":data})
+    else:
+        parentids.insert_one(data)
 
 def find_parent_id(user_id):
-    parent_id = parentids.find_one({"user_id":user_id})
-    if parent_id:
+    if parent_id := parentids.find_one({"user_id": user_id}):
         return parent_id['parent_id']
     else:
         return None
@@ -97,26 +91,24 @@ def delete_parent_id(user_id):
 
 ############
 def upload_sas():
-    sas_folder_parent = os.getcwd() + "/sas"
+    sas_folder_parent = f"{os.getcwd()}/sas"
     dirlist = os.listdir(sas_folder_parent)
-    sas_folder = sas_folder_parent + f"/{dirlist[0]}"
+    sas_folder = f"{sas_folder_parent}/{dirlist[0]}"
     sa_files = os.listdir(sas_folder)
     for idx,filename in enumerate(sa_files):
-        with open(sas_folder+f"/{filename}") as f:
+        with open(f"{sas_folder}/{filename}") as f:
             data = json.load(f)
             data['sa_file_index'] = idx
             sas_db.insert_one(data)
 
 def find_sas():
-    sas_all = list(sas_db.find())
-    return sas_all
+    return list(sas_db.find())
 
 def delete_sas():
     sas_db.drop()
 
 def find_sa_info_by_id(id):
-    info = sas_db.find_one({"sa_file_index":id})
-    return info
+    return sas_db.find_one({"sa_file_index":id})
 
 ###################################
 
@@ -125,7 +117,7 @@ def create_db_insert_sas(project_id):
     sas_folder = 'accounts'
     sa_files = os.listdir(sas_folder)
     for filename in sa_files:
-        with open(sas_folder+f"/{filename}") as f:
+        with open(f"{sas_folder}/{filename}") as f:
             data = json.load(f)
             temp.insert_one(data)
 
@@ -135,7 +127,7 @@ def download_sas_projid(project_id):
     if not os.path.exists('accounts'):
         os.mkdir('accounts')
     for j in sas_ls:
-        with open('%s/%s.json' % ('accounts',j["private_key_id"]),'w+') as f:
+        with open(f'accounts/{j["private_key_id"]}.json', 'w+') as f:
             f.write(json.dumps(j))
 
 def sas_for_projid_exists(project_id):
@@ -149,27 +141,32 @@ def sas_for_projid_exists(project_id):
 
 def has_credentials():
     async def predicate(ctx:commands.Context):
-        return True if find_creds(ctx.author.id) else False
+        return bool(find_creds(ctx.author.id))
+
     return commands.check(predicate)
 
 def has_sa_creds():
     async def predicate(ctx:commands.Context):
-        return True if sascre_find_creds(ctx.author.id) else False
+        return bool(sascre_find_creds(ctx.author.id))
+
     return commands.check(predicate)
 
 
 def not_has_credentials():
     async def predicate(ctx:commands.Context):
-        return False if find_creds(ctx.author.id) else True
+        return not find_creds(ctx.author.id)
+
     return commands.check(predicate)
 
 def not_has_sa_creds():
     async def predicate(ctx:commands.Context):
-        return False if sascre_find_creds(ctx.author.id) else True
+        return not sascre_find_creds(ctx.author.id)
+
     return commands.check(predicate)
 
 def has_uploaded_sas():
     async def predicate(ctx):
         x = sas_db.find_one()
-        return True if x else False
+        return bool(x)
+
     return commands.check(predicate)

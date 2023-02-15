@@ -34,55 +34,55 @@ class ServiceAccounts(commands.Cog):
     @commands.command(description=f'Use this to authorize for managing Service Accounts.\n`{prefix}authsa`')
     async def authsa(self,ctx):
         creds = db.sascre_find_creds(ctx.author.id)
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-                db.sascre_insert_creds(ctx.author.id,creds)
-                em = embed(title="🧾 Service Accounts",description="You have already authorized for Service Accounts")[0]
-                await ctx.send(embed=em)
-            else:
-                credentials = {
-                    "installed": {
-                            "client_id": G_DRIVE_CLIENT_ID,
-                            "client_secret": G_DRIVE_CLIENT_SECRET,
-                            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                            "token_uri": "https://oauth2.googleapis.com/token",
-                            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                            "redirect_uris": [
-                                "http://localhost"
-                            ]
-                        }
-                }
-                flow = InstalledAppFlow.from_client_config(credentials,sascre.SCOPES)
-                # flow.redirect_uri = 'https://jsmsj.github.io/GdriveCloneBot/auth'
-                flow.redirect_uri = 'http://localhost:1'
-                auth_url, _ = flow.authorization_url(access_type='offline')
-                em,view = embed(title="🧾 Service Accounts",description=f"Visit the following URL and the authorise. You will be redirected to a **error page**. That page's url would be something like:\nhttps://localhost:1/XXXXXXXXX\n\nCopy that url and send here within 2 minutes.\n\n{auth_url}",url=auth_url)
-                # em,view = embed(title="🧾 Service Accounts",description=f"Visit the following URL and the authorise. Make sure to select all the scopes, copy the code and send it here within 2 minutes.\n\n{auth_url}",url=auth_url)
-                await ctx.send(embed=em,view=view)
-                try:
-                    msg:discord.Message = await self.bot.wait_for('message', check=lambda message : message.author == ctx.author and message.channel == ctx.channel, timeout=120)
-                except asyncio.TimeoutError:
-                    return await ctx.send(embed=embed('Error | Timed out','You did not respond in time. Re run the command and try to respond under 120 seconds.')[0])
-                sent_message = await ctx.reply("🕵️**Checking the received code...**")
-                try:
-                    redir_url = msg.content
-                    query = urllib.parse.urlparse(redir_url).query
-                    code = urllib.parse.parse_qs(query)['code'][0]
-                    # code = redir_url
-                    flow.fetch_token(code=code)
-                    creds = flow.credentials
-                    db.sascre_insert_creds(ctx.author.id,creds)
-                    em = embed(title="🧾 Service Accounts",description="You have successfully authorized for Service Accounts")[0]
-                    await sent_message.edit(embed=em)
-                except Exception as e:
-                    logger.error(e,exc_info=True)
-                    em,view = embed(title='❗ Invalid Link',description=f'The link you have sent is invalid. Generate new one by the Authorization URL `{prefix}authsa`',url=auth_url)
-                    # em,view = embed(title='❗ Invalid Code',description='The code you sent is invalid. Generate new one by the Authorization URL',url=auth_url)
-                    await sent_message.edit(embed=em,view=view)
-        else:
+        if creds and creds.valid:
             em = embed(title="🧾 Service Accounts",description="You have already authorized for Service Accounts")[0]
             await ctx.send(embed=em)
+
+        elif creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            db.sascre_insert_creds(ctx.author.id,creds)
+            em = embed(title="🧾 Service Accounts",description="You have already authorized for Service Accounts")[0]
+            await ctx.send(embed=em)
+        else:
+            credentials = {
+                "installed": {
+                        "client_id": G_DRIVE_CLIENT_ID,
+                        "client_secret": G_DRIVE_CLIENT_SECRET,
+                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                        "token_uri": "https://oauth2.googleapis.com/token",
+                        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                        "redirect_uris": [
+                            "http://localhost"
+                        ]
+                    }
+            }
+            flow = InstalledAppFlow.from_client_config(credentials,sascre.SCOPES)
+            # flow.redirect_uri = 'https://jsmsj.github.io/GdriveCloneBot/auth'
+            flow.redirect_uri = 'http://localhost:1'
+            auth_url, _ = flow.authorization_url(access_type='offline')
+            em,view = embed(title="🧾 Service Accounts",description=f"Visit the following URL and the authorise. You will be redirected to a **error page**. That page's url would be something like:\nhttps://localhost:1/XXXXXXXXX\n\nCopy that url and send here within 2 minutes.\n\n{auth_url}",url=auth_url)
+            # em,view = embed(title="🧾 Service Accounts",description=f"Visit the following URL and the authorise. Make sure to select all the scopes, copy the code and send it here within 2 minutes.\n\n{auth_url}",url=auth_url)
+            await ctx.send(embed=em,view=view)
+            try:
+                msg:discord.Message = await self.bot.wait_for('message', check=lambda message : message.author == ctx.author and message.channel == ctx.channel, timeout=120)
+            except asyncio.TimeoutError:
+                return await ctx.send(embed=embed('Error | Timed out','You did not respond in time. Re run the command and try to respond under 120 seconds.')[0])
+            sent_message = await ctx.reply("🕵️**Checking the received code...**")
+            try:
+                redir_url = msg.content
+                query = urllib.parse.urlparse(redir_url).query
+                code = urllib.parse.parse_qs(query)['code'][0]
+                # code = redir_url
+                flow.fetch_token(code=code)
+                creds = flow.credentials
+                db.sascre_insert_creds(ctx.author.id,creds)
+                em = embed(title="🧾 Service Accounts",description="You have successfully authorized for Service Accounts")[0]
+                await sent_message.edit(embed=em)
+            except Exception as e:
+                logger.error(e,exc_info=True)
+                em,view = embed(title='❗ Invalid Link',description=f'The link you have sent is invalid. Generate new one by the Authorization URL `{prefix}authsa`',url=auth_url)
+                # em,view = embed(title='❗ Invalid Code',description='The code you sent is invalid. Generate new one by the Authorization URL',url=auth_url)
+                await sent_message.edit(embed=em,view=view)
 
     @has_sa_creds()
     @is_allowed()
@@ -164,8 +164,7 @@ class ServiceAccounts(commands.Cog):
     @is_allowed()
     @commands.command(description=f'Used to revoke your account connected to Service Accounts with the bot.\n`{prefix}revokesa`')
     async def revokesa(self,ctx):
-        creds = db.sascre_find_creds(ctx.author.id)
-        if creds:
+        if creds := db.sascre_find_creds(ctx.author.id):
             revoke = requests.post('https://accounts.google.com/o/oauth2/revoke',
                     params={'token': creds.token},
                     headers = {'content-type': 'application/x-www-form-urlencoded'})

@@ -28,35 +28,44 @@ class Help(commands.Cog):
                 em.set_footer(text="Made with 💖 by jsmsj")
                 em.description = f'Run `{prefix}help cmd_name` for more info on the command.'
                 for j in val:
-                    em.add_field(name=f"{prefix}{j.name}",value=j.description if j.description else "None",inline=False)
+                    em.add_field(
+                        name=f"{prefix}{j.name}",
+                        value=j.description or "None",
+                        inline=False,
+                    )
                 ls_of_em.append(em)
             paginator = pages.Paginator(pages=ls_of_em)
             return await paginator.send(ctx)
         else:
             cmd = cmd.strip()
             cmd_name_list = [i.name for i in com_except_jishaku]
-            if not cmd in cmd_name_list:
-                em = discord.Embed(title=f"Unable to find that command",color=discord.Color.green())
+            if cmd not in cmd_name_list:
+                em = discord.Embed(
+                    title="Unable to find that command",
+                    color=discord.Color.green(),
+                )
                 em.set_footer(text="Made with 💖 by jsmsj")
                 em.description = f'Command {cmd} not found !'
-                return await ctx.send(embed=em)
             else:
                 try:
                     idx = cmd_name_list.index(cmd)
                 except ValueError:
                     idx= None
                 if not idx:
-                    em = discord.Embed(title=f"Unable to find that command",color=discord.Color.green())
+                    em = discord.Embed(
+                        title="Unable to find that command",
+                        color=discord.Color.green(),
+                    )
                     em.set_footer(text="Made with 💖 by jsmsj")
                     em.description = f'Command {cmd} not found !'
-                    return await ctx.send(embed=em)
                 else:
                     comm:commands.Command = com_except_jishaku[idx]
                     em = discord.Embed(title=f"Help: {comm.name}",color=discord.Color.green())
                     em.set_footer(text="Made with 💖 by jsmsj")
-                    em.description = comm.description if comm.description else 'None'
+                    em.description = comm.description or 'None'
                     em.add_field(name='Category',value=str(comm.cog_name))
-                    return await ctx.send(embed=em)
+
+            return await ctx.send(embed=em)
 
 def setup(bot):
     bot.add_cog(Help(bot))

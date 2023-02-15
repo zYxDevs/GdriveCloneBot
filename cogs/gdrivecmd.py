@@ -60,9 +60,7 @@ class GdriveCmd(commands.Cog):
             await ctx.send(f'Error | you have not uploaded service accounts, use `{cogs._config.prefix}uploadsas` to upload service accounts, and then run this command.')
         else:
             logger.warning(error)
-            _file=None
-            if os.path.exists('log.txt'):
-                _file = discord.File('log.txt')
+            _file = discord.File('log.txt') if os.path.exists('log.txt') else None
             await ctx.send(embed=embed(f'Error | {ctx.command.name}',f'An error occured, kindly report it to jsmsj#5252.\n```py\n{error}\n```\nHere is the attached logfile.')[0],file=_file)
 
     @is_allowed()
@@ -71,7 +69,7 @@ class GdriveCmd(commands.Cog):
     async def set_folder(self,ctx,*,link=None):
         user_id = ctx.author.id
         if link:
-            if not 'clear' in link:
+            if 'clear' not in link:
                 em,view = embed(title="🕵️ Set Folder",description=f"**Checking Link...** - {link}",url=None)
                 sent_message = await ctx.reply(embed=em,view=view)
                 gdrive = GoogleDrive(user_id,use_sa=False)
@@ -108,18 +106,15 @@ class GdriveCmd(commands.Cog):
                     if not db.find_sas():
                         db.upload_sas()
                         em,view = embed("🧾 Service Accounts","Added Service Accounts successfully.",None)
-                        await ctx.send(embed=em,view=view)
                     else:
                         db.delete_sas()
                         db.upload_sas()
                         em,view = embed("🧾 Service Accounts","Updated Service Accounts successfully.",None)
-                        await ctx.send(embed=em,view=view)
                 else:
                     em,view = embed("❗ Service Accounts","You didn't give me a zip file of service accounts. [1]",None)
-                    await ctx.send(embed=em,view=view)
             else:
                 em,view = embed("❗ Service Accounts","You didn't give me a zip file of service accounts. [2]",None)
-                await ctx.send(embed=em,view=view)
+            await ctx.send(embed=em,view=view)
         except Exception as e:
             logger.error(e,exc_info=True)
         finally:
