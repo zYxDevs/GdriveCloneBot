@@ -36,9 +36,7 @@ async def on_command_error(ctx:commands.Context,error):
         await ctx.send(f"You do not have permission to run this command.\nOR\nYou have not authorized the bot with your account. Run `{cogs._config.prefix}auth` to authorize.\nOR\nYou are using a command related to service accounts, and have not authorized for it. Use `{cogs._config.prefix}authsa` to authorize for service accounts.")
     else:
         logger.warning(error)
-        _file=None
-        if os.path.exists('log.txt'):
-            _file = discord.File('log.txt')
+        _file = discord.File('log.txt') if os.path.exists('log.txt') else None
         await ctx.send(embed=embed(f'Error | {ctx.command.name}',f'An error occured, kindly report it to jsmsj#5252.\n```py\n{error}\n```\nHere is the attached logfile.')[0],file=_file)
 
 if __name__ == '__main__':

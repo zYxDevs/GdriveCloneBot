@@ -16,10 +16,13 @@ def _generate_id(prefix='saf-'):
 
 
 def _list_sas(iam,project):
-    resp = iam.projects().serviceAccounts().list(name='projects/' + project,pageSize=100).execute()
-    if 'accounts' in resp:
-        return resp['accounts']
-    return []
+    resp = (
+        iam.projects()
+        .serviceAccounts()
+        .list(name=f'projects/{project}', pageSize=100)
+        .execute()
+    )
+    return resp['accounts'] if 'accounts' in resp else []
 
 class ServAcc:
     def __init__(self,user_id):
@@ -41,12 +44,16 @@ class ServAcc:
         return [i['projectId'] for i in self.cloud.projects().list().execute()['projects']]
 
     def enableservices(self,projectid) -> None:
-        services_links = [i + '.googleapis.com' for i in self.services]
+        services_links = [f'{i}.googleapis.com' for i in self.services]
         projects = [projectid]
         batch = self.serviceusage.new_batch_http_request(callback=self._def_batch_resp)
         for i in projects:
             for j in services_links:
-                batch.add(self.serviceusage.services().enable(name='projects/%s/services/%s' % (i,j)))
+                batch.add(
+                    self.serviceusage.services().enable(
+                        name=f'projects/{i}/services/{j}'
+                    )
+                )
         batch.execute()
     
     def createsas(self,projectid):
@@ -57,9 +64,19 @@ class ServAcc:
 
     def _create_accounts(self,service,project,count):
         batch = service.new_batch_http_request(callback=self._def_batch_resp)
-        for i in range(count):
+        for _ in range(count):
             aid = _generate_id('mfc-')
-            batch.add(service.projects().serviceAccounts().create(name='projects/' + project, body={ 'accountId': aid, 'serviceAccount': { 'displayName': aid }}))
+            batch.add(
+                service.projects()
+                .serviceAccounts()
+                .create(
+                    name=f'projects/{project}',
+                    body={
+                        'accountId': aid,
+                        'serviceAccount': {'displayName': aid},
+                    },
+                )
+            )
         batch.execute()
 
     def _def_batch_resp(self,id,resp,exception):
@@ -67,7 +84,7 @@ class ServAcc:
             if str(exception).startswith('<HttpError 429'):
                 time.sleep(self.sleep_time/100)
             else:
-                print(str(exception))
+                print(exception)
 
     def download_keys(self,projectid):
         self._create_sa_keys(self.iam,[projectid],'accounts')
@@ -88,16 +105,21 @@ class ServAcc:
                     batch = iam.new_batch_http_request(callback=self._batch_keys_resp)
                     total_sas = _list_sas(iam,i)
                     for j in total_sas:
-                        batch.add(iam.projects().serviceAccounts().keys().create(
-                            name='projects/%s/serviceAccounts/%s' % (i,j['uniqueId']),
-                            body={
-                                'privateKeyType':'TYPE_GOOGLE_CREDENTIALS_FILE',
-                                'keyAlgorithm':'KEY_ALG_RSA_2048'
-                            }
-                        ))
+                        batch.add(
+                            iam.projects()
+                            .serviceAccounts()
+                            .keys()
+                            .create(
+                                name=f"projects/{i}/serviceAccounts/{j['uniqueId']}",
+                                body={
+                                    'privateKeyType': 'TYPE_GOOGLE_CREDENTIALS_FILE',
+                                    'keyAlgorithm': 'KEY_ALG_RSA_2048',
+                                },
+                            )
+                        )
                     print("DOWNLOADING KEYSS !!!!!!")
                     logger.critical('DOWNLOADING KEYSS !!!!!!')
-                    
+
                     batch.execute()
                     print("DOWNLOADED KEYSS !!!!!!")
                     logger.critical('DOWNLOADED KEYSS !!!!!!')
@@ -105,7 +127,7 @@ class ServAcc:
                         self.current_key_dump = []
                     else:
                         for j in self.current_key_dump:
-                            with open('%s/%s.json' % (path,j[0]),'w+') as f:
+                            with open(f'{path}/{j[0]}.json', 'w+') as f:
                                 f.write(j[1])
         except Exception as e:
             print(e)

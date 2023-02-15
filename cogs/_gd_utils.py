@@ -45,35 +45,34 @@ class GoogleDrive:
         self.threaded_details = {"overall_used_sas":[]}
 
     def getIdFromUrl(self, link: str):
-            if "folders" in link or "file" in link:
-                    regex = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
-                    res = re.search(regex,link)
-                    if res is None:
-                            raise IndexError("GDrive ID not found.")
-                    return res.group(5)
-            parsed = urlparse.urlparse(link)
-            return parse_qs(parsed.query)['id'][0]
+        if "folders" in link or "file" in link:
+            regex = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
+            res = re.search(regex,link)
+            if res is None:
+                    raise IndexError("GDrive ID not found.")
+            return res[5]
+        parsed = urlparse.urlparse(link)
+        return parse_qs(parsed.query)['id'][0]
 
     @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(5),
         retry=retry_if_exception_type(HttpError), before=before_log(logger, logging.DEBUG))
     def getFilesByFolderId(self, folder_id):
-            page_token = None
-            q = f"'{folder_id}' in parents"
-            files = []
-            while True:
-                    response = self.__service.files().list(supportsTeamDrives=True,
-                    									    includeTeamDriveItems=True,
-                    									    q=q,
-                    									    spaces='drive',
-                    									    pageSize=200,
-                    									    fields='nextPageToken, files(id, name, mimeType,size)',
-                    									    pageToken=page_token).execute()
-                    for file in response.get('files', []):
-                            files.append(file)
-                    page_token = response.get('nextPageToken', None)
-                    if page_token is None:
-                            break
-            return files
+        page_token = None
+        q = f"'{folder_id}' in parents"
+        files = []
+        while True:
+            response = self.__service.files().list(supportsTeamDrives=True,
+            									    includeTeamDriveItems=True,
+            									    q=q,
+            									    spaces='drive',
+            									    pageSize=200,
+            									    fields='nextPageToken, files(id, name, mimeType,size)',
+            									    pageToken=page_token).execute()
+            files.extend(iter(response.get('files', [])))
+            page_token = response.get('nextPageToken', None)
+            if page_token is None:
+                    break
+        return files
             
     @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(15),
         retry=retry_if_exception_type(HttpError), before=before_log(logger, logging.DEBUG))
@@ -83,12 +82,15 @@ class GoogleDrive:
             'description': 'Uploaded by Gdrive Clone Bot'
         }
         try:
-            res = self.__service.files().copy(supportsAllDrives=True,fileId=file_id,body=body).execute()
-            return res
+            return (
+                self.__service.files()
+                .copy(supportsAllDrives=True, fileId=file_id, body=body)
+                .execute()
+            )
         except HttpError as err:
             if err.resp.get('content-type', '').startswith('application/json'):
                 reason = json.loads(err.content).get('error').get('errors')[0].get('reason')
-                if reason == 'userRateLimitExceeded' or reason == 'dailyLimitExceeded':
+                if reason in ['userRateLimitExceeded', 'dailyLimitExceeded']:
                     if self.use_sa:
                         self.switchSaIndex()
                         return self.copyFile(file_id, dest_id)
@@ -130,19 +132,15 @@ class GoogleDrive:
     @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(5),
         retry=retry_if_exception_type(HttpError), before=before_log(logger, logging.DEBUG))
     def create_directory(self, directory_name,**kwargs):
-        if not kwargs == {}:
-            parent_id = kwargs.get('parent_id')
-        else:
-            parent_id = self.__parent_id
+        parent_id = kwargs.get('parent_id') if kwargs else self.__parent_id
         file_metadata = {
-                "name": directory_name,
-                "mimeType": self.__G_DRIVE_DIR_MIME_TYPE,
-                'description': 'Uploaded by Gdrive Clone Bot'
+            "name": directory_name,
+            "mimeType": self.__G_DRIVE_DIR_MIME_TYPE,
+            'description': 'Uploaded by Gdrive Clone Bot',
+            "parents": [parent_id],
         }
-        file_metadata["parents"] = [parent_id]
         file = self.__service.files().create(supportsTeamDrives=True, body=file_metadata).execute()
-        file_id = file.get("id")
-        return file_id
+        return file.get("id")
 
     async def clone(self,msg:Message,link):
         self.transferred_size = 0
@@ -238,40 +236,35 @@ class GoogleDrive:
     @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(5),
         retry=retry_if_exception_type(HttpError), before=before_log(logger, logging.DEBUG))
     def threaded_getFilesByFolderId(self,thread_name, folder_id):
-            page_token = None
-            q = f"'{folder_id}' in parents"
-            files = []
-            while True:
-                    response = self.threaded_details[thread_name]['service'].files().list(supportsTeamDrives=True,
-                    									    includeTeamDriveItems=True,
-                    									    q=q,
-                    									    spaces='drive',
-                    									    pageSize=200,
-                    									    fields='nextPageToken, files(id, name, mimeType,size)',
-                    									    pageToken=page_token).execute(http=self.threaded_details[thread_name]['http'])
-                    for file in response.get('files', []):
-                            files.append(file)
-                    page_token = response.get('nextPageToken', None)
-                    if page_token is None:
-                            break
-            return files
+        page_token = None
+        q = f"'{folder_id}' in parents"
+        files = []
+        while True:
+            response = self.threaded_details[thread_name]['service'].files().list(supportsTeamDrives=True,
+            									    includeTeamDriveItems=True,
+            									    q=q,
+            									    spaces='drive',
+            									    pageSize=200,
+            									    fields='nextPageToken, files(id, name, mimeType,size)',
+            									    pageToken=page_token).execute(http=self.threaded_details[thread_name]['http'])
+            files.extend(iter(response.get('files', [])))
+            page_token = response.get('nextPageToken', None)
+            if page_token is None:
+                    break
+        return files
 
     @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(5),
         retry=retry_if_exception_type(HttpError), before=before_log(logger, logging.DEBUG))
     def threaded_create_directory(self,thread_name, directory_name,**kwargs):
-        if not kwargs == {}:
-            parent_id = kwargs.get('parent_id')
-        else:
-            parent_id = self.__parent_id
+        parent_id = kwargs.get('parent_id') if kwargs else self.__parent_id
         file_metadata = {
-                "name": directory_name,
-                "mimeType": self.__G_DRIVE_DIR_MIME_TYPE,
-                'description': 'Uploaded by Gdrive Clone Bot'
+            "name": directory_name,
+            "mimeType": self.__G_DRIVE_DIR_MIME_TYPE,
+            'description': 'Uploaded by Gdrive Clone Bot',
+            "parents": [parent_id],
         }
-        file_metadata["parents"] = [parent_id]
         file = self.threaded_details[thread_name]['service'].files().create(supportsTeamDrives=True, body=file_metadata).execute(http=self.threaded_details[thread_name]['http'])
-        file_id = file.get("id")
-        return file_id
+        return file.get("id")
 
     @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(15),
         retry=retry_if_exception_type(HttpError), before=before_log(logger, logging.DEBUG))
@@ -281,12 +274,16 @@ class GoogleDrive:
             'description': 'Uploaded by Gdrive Clone Bot'
         }
         try:
-            res = self.threaded_details[thread_name]['service'].files().copy(supportsAllDrives=True,fileId=file_id,body=body).execute(http=self.threaded_details[thread_name]['http'])
-            return res
+            return (
+                self.threaded_details[thread_name]['service']
+                .files()
+                .copy(supportsAllDrives=True, fileId=file_id, body=body)
+                .execute(http=self.threaded_details[thread_name]['http'])
+            )
         except HttpError as err:
             if err.resp.get('content-type', '').startswith('application/json'):
                 reason = json.loads(err.content).get('error').get('errors')[0].get('reason')
-                if reason == 'userRateLimitExceeded' or reason == 'dailyLimitExceeded':
+                if reason in ['userRateLimitExceeded', 'dailyLimitExceeded']:
                     if self.use_sa:
                         self.threaded_switchSaIndex(thread_name)
                         self.threaded_copyFile(file_id, dest_id,thread_name)
@@ -347,19 +344,17 @@ class GoogleDrive:
                 dir_id = self.create_directory(meta.get('name'),parent_id=self.__parent_id)
                 if len(files) <= 4:
                     number_of_threads = len(files)
-                if number_of_threads >10:
-                    number_of_threads = 10
-
+                number_of_threads = min(number_of_threads, 10)
                 divided_file_ids = list_into_n_parts(files,number_of_threads)
 
                 list_of_threads = []
 
                 for idx,val in enumerate(divided_file_ids):
-                    if not len(val) == 0:
+                    if len(val) != 0:
                         thread = threading.Thread(name=f"Thread{idx+1}",target=self.threaded_cloneFolder,args=(meta.get('name'), meta.get('name'),val,dir_id,f"Thread{idx+1}",loop))
                         list_of_threads.append(thread)
                         try:
-                            thread_total_size = sum([int(file.get('size')) for file in val])
+                            thread_total_size = sum(int(file.get('size')) for file in val)
                         except TypeError:
                             thread_total_size = 0
                             for v in val:
@@ -390,13 +385,13 @@ class GoogleDrive:
                         # print(overall_used_sas_lst)
                         overall_used_sas_lst.append(idx)
                         self.threaded_details.update({'overall_used_sas':overall_used_sas_lst})
-                        # print('going to next')
-                
+                                        # print('going to next')
+
                 # pprint.pprint(self.threaded_details)
 
                 for i in list_of_threads:
                     i.start()
-                
+
                 for i in list_of_threads:
                     i.join()
 
@@ -420,13 +415,17 @@ class GoogleDrive:
         if current_index == len(all_sas)-1:
             self.threaded_details[thread_name]['sa_index'] = 0
         self.threaded_details[thread_name]['used_sas'].append(current_index)
-        if not current_index in self.threaded_details['overall_used_sas']:
+        if current_index not in self.threaded_details['overall_used_sas']:
             self.threaded_details['overall_used_sas'].append(current_index)
-        sa_index = list({i for i in range(100)}.difference(set(self.threaded_details['overall_used_sas'])))[0]
+        sa_index = list(
+            set(range(100)).difference(
+                set(self.threaded_details['overall_used_sas'])
+            )
+        )[0]
         self.threaded_details[thread_name]['sa_index']=sa_index
 
         self.threaded_details[thread_name]['service'] = self.threaded_authorize(thread_name)
-        print(f"SWITCHING SA FOR {thread_name} (Old sa: {current_index} :: New sa : {sa_index})")     
+        print(f"SWITCHING SA FOR {thread_name} (Old sa: {current_index} :: New sa : {sa_index})")
         logger.warning(f"SWITCHING SA FOR {thread_name} (Old sa: {current_index} :: New sa : {sa_index})")     
 
 

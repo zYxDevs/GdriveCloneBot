@@ -11,13 +11,14 @@ from math import ceil
 def is_allowed():
     async def predicate(ctx:commands.Context):
         if isinstance(allowed_user_ids,list):
-            return True if ctx.author.id in allowed_user_ids else False
+            return ctx.author.id in allowed_user_ids
         elif isinstance(allowed_user_ids,int):
-            return True if ctx.author.id == allowed_user_ids else False
+            return ctx.author.id == allowed_user_ids
         elif isinstance(allowed_user_ids,str):
-            return True if ctx.author.id == int(allowed_user_ids) else False
+            return ctx.author.id == int(allowed_user_ids)
         else:
             return True
+
     return commands.check(predicate)
 
 
@@ -37,7 +38,7 @@ def humanbytes(size: int) -> str:
     while size > power:
         size /= power
         number += 1
-    return str(round(size, 3)) + " " + dict_power_n[number] + 'B'
+    return f"{str(round(size, 3))} {dict_power_n[number]}B"
 
 def humantime(seconds):
     if seconds > 3600:
@@ -63,8 +64,7 @@ def embed(title,description,url=None):
 def show_progress_still(current:int,total:int,width:int):
     int_percent = round(current*100/total)
     hashblocks = round((int_percent*width/100)-1)
-    if hashblocks<0:
-        hashblocks = 0
+    hashblocks = max(hashblocks, 0)
     return "#️⃣"* hashblocks + "▶️" + "🟦"*(width-hashblocks-1)
 
 def status_emb(transferred:int,current_file_name,current_file_size,total_size:int,start_time,total_files,num_of_files_transferred):
